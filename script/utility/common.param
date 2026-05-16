@@ -1,0 +1,5 @@
+[GEN]
+env = prod
+region = us-east-1
+crawler_iam_role_arn = arn:aws:iam::537124955775:role/bootcamp-poc-farhan
+endpoint_url = https://glue.us-east-1.amazonaws.com

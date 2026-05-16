@@ -1,0 +1,16 @@
+[GEN]
+env = prod
+db_name = cdl_prod
+batch_size = 4
+region_name = us-east-1
+s3_temp_location = = s3://aws-athena-query-results-537124955775-us-east-1/
+athena_workgroup = cdl-test-AthenaWorkGroup
+secret_name = cdl-test-DatalakeSecretAD
+landing_bucket_name = s3://ttn-de-bootcamp-bronze-us-east-1/7002_anand/
+
+[MYSQL]
+input_metadata_db = 
+input_metadata_table = 
+landing_to_staging_fliteration_table = 
+job_summary_table = 
+source_name = 

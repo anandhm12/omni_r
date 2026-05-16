@@ -1,0 +1,702 @@
+[
+  {
+    "zone_name": "High_Risk_Pass_A",
+    "min_lat": 34.05,
+    "max_lat": 34.1,
+    "min_long": -118.25,
+    "max_long": -118.2
+  },
+  {
+    "zone_name": "Bridge_Closure_B",
+    "min_lat": 43.6025,
+    "max_lat": 43.8573,
+    "min_long": -73.8959,
+    "max_long": -73.6881
+  },
+  {
+    "zone_name": "Airport_Perimeter_C",
+    "min_lat": 30.9305,
+    "max_lat": 31.1141,
+    "min_long": -107.0301,
+    "max_long": -106.9597
+  },
+  {
+    "zone_name": "Wildlife_Corridor_D",
+    "min_lat": 31.51,
+    "max_lat": 31.7276,
+    "min_long": -121.9166,
+    "max_long": -121.8018
+  },
+  {
+    "zone_name": "School_Safety_E",
+    "min_lat": 46.0049,
+    "max_lat": 46.2489,
+    "min_long": -93.9693,
+    "max_long": -93.8227
+  },
+  {
+    "zone_name": "Bridge_Closure_F",
+    "min_lat": 39.4683,
+    "max_lat": 39.5589,
+    "min_long": -73.3936,
+    "max_long": -73.1316
+  },
+  {
+    "zone_name": "Military_Area_G",
+    "min_lat": 41.5217,
+    "max_lat": 41.8035,
+    "min_long": -78.6422,
+    "max_long": -78.5004
+  },
+  {
+    "zone_name": "Wildlife_Corridor_H",
+    "min_lat": 27.3269,
+    "max_lat": 27.5469,
+    "min_long": -98.6159,
+    "max_long": -98.5013
+  },
+  {
+    "zone_name": "High_Risk_Pass_I",
+    "min_lat": 31.5522,
+    "max_lat": 31.7004,
+    "min_long": -90.6778,
+    "max_long": -90.411
+  },
+  {
+    "zone_name": "Flood_Zone_J",
+    "min_lat": 26.4653,
+    "max_lat": 26.5291,
+    "min_long": -84.2855,
+    "max_long": -84.0757
+  },
+  {
+    "zone_name": "School_Safety_K",
+    "min_lat": 37.5998,
+    "max_lat": 37.7684,
+    "min_long": -86.7163,
+    "max_long": -86.6215
+  },
+  {
+    "zone_name": "Military_Area_L",
+    "min_lat": 45.9149,
+    "max_lat": 46.1255,
+    "min_long": -79.9165,
+    "max_long": -79.7667
+  },
+  {
+    "zone_name": "Flood_Zone_M",
+    "min_lat": 30.8734,
+    "max_lat": 31.0956,
+    "min_long": -115.8268,
+    "max_long": -115.6752
+  },
+  {
+    "zone_name": "Bridge_Closure_N",
+    "min_lat": 28.2056,
+    "max_lat": 28.277,
+    "min_long": -118.8981,
+    "max_long": -118.6371
+  },
+  {
+    "zone_name": "School_Safety_O",
+    "min_lat": 46.7468,
+    "max_lat": 46.956,
+    "min_long": -106.961,
+    "max_long": -106.7764
+  },
+  {
+    "zone_name": "Construction_Block_P",
+    "min_lat": 36.7719,
+    "max_lat": 36.8703,
+    "min_long": -114.6636,
+    "max_long": -114.5878
+  },
+  {
+    "zone_name": "Bridge_Closure_Q",
+    "min_lat": 32.075,
+    "max_lat": 32.2986,
+    "min_long": -87.7067,
+    "max_long": -87.4787
+  },
+  {
+    "zone_name": "Flood_Zone_R",
+    "min_lat": 27.7189,
+    "max_lat": 27.9971,
+    "min_long": -93.5563,
+    "max_long": -93.3837
+  },
+  {
+    "zone_name": "High_Risk_Pass_S",
+    "min_lat": 36.6601,
+    "max_lat": 36.9295,
+    "min_long": -72.8173,
+    "max_long": -72.7211
+  },
+  {
+    "zone_name": "Bridge_Closure_T",
+    "min_lat": 31.9744,
+    "max_lat": 32.1986,
+    "min_long": -116.2388,
+    "max_long": -116.1124
+  },
+  {
+    "zone_name": "Airport_Perimeter_U",
+    "min_lat": 30.7164,
+    "max_lat": 30.8548,
+    "min_long": -75.7541,
+    "max_long": -75.4909
+  },
+  {
+    "zone_name": "Bridge_Closure_V",
+    "min_lat": 37.3993,
+    "max_lat": 37.6749,
+    "min_long": -98.3263,
+    "max_long": -98.0675
+  },
+  {
+    "zone_name": "Port_Zone_W",
+    "min_lat": 29.2931,
+    "max_lat": 29.3941,
+    "min_long": -116.0312,
+    "max_long": -115.963
+  },
+  {
+    "zone_name": "High_Risk_Pass_X",
+    "min_lat": 45.3819,
+    "max_lat": 45.5459,
+    "min_long": -93.7314,
+    "max_long": -93.655
+  },
+  {
+    "zone_name": "Construction_Block_Y",
+    "min_lat": 45.1353,
+    "max_lat": 45.2717,
+    "min_long": -105.4353,
+    "max_long": -105.2825
+  },
+  {
+    "zone_name": "School_Safety_Z",
+    "min_lat": 37.1925,
+    "max_lat": 37.3491,
+    "min_long": -114.4503,
+    "max_long": -114.3299
+  },
+  {
+    "zone_name": "High_Risk_Pass_A1",
+    "min_lat": 42.8866,
+    "max_lat": 42.934,
+    "min_long": -97.3596,
+    "max_long": -97.1548
+  },
+  {
+    "zone_name": "Port_Zone_B1",
+    "min_lat": 30.4084,
+    "max_lat": 30.511,
+    "min_long": -93.3636,
+    "max_long": -93.3038
+  },
+  {
+    "zone_name": "Industrial_Block_C1",
+    "min_lat": 28.6414,
+    "max_lat": 28.7144,
+    "min_long": -77.4449,
+    "max_long": -77.4015
+  },
+  {
+    "zone_name": "Military_Area_D1",
+    "min_lat": 41.8049,
+    "max_lat": 42.0029,
+    "min_long": -97.5222,
+    "max_long": -97.4776
+  },
+  {
+    "zone_name": "Wildlife_Corridor_E1",
+    "min_lat": 27.7713,
+    "max_lat": 27.8189,
+    "min_long": -71.3012,
+    "max_long": -71.0744
+  },
+  {
+    "zone_name": "Industrial_Block_F1",
+    "min_lat": 32.3918,
+    "max_lat": 32.627,
+    "min_long": -121.8615,
+    "max_long": -121.7087
+  },
+  {
+    "zone_name": "Bridge_Closure_G1",
+    "min_lat": 41.0876,
+    "max_lat": 41.1678,
+    "min_long": -99.6757,
+    "max_long": -99.4463
+  },
+  {
+    "zone_name": "Industrial_Block_H1",
+    "min_lat": 29.7735,
+    "max_lat": 30.0423,
+    "min_long": -89.5015,
+    "max_long": -89.2719
+  },
+  {
+    "zone_name": "High_Risk_Pass_I1",
+    "min_lat": 46.6092,
+    "max_lat": 46.7402,
+    "min_long": -83.5122,
+    "max_long": -83.2962
+  },
+  {
+    "zone_name": "Port_Zone_J1",
+    "min_lat": 45.4443,
+    "max_lat": 45.6447,
+    "min_long": -93.5462,
+    "max_long": -93.4446
+  },
+  {
+    "zone_name": "High_Risk_Pass_K1",
+    "min_lat": 41.0747,
+    "max_lat": 41.2505,
+    "min_long": -74.3393,
+    "max_long": -74.1835
+  },
+  {
+    "zone_name": "Bridge_Closure_L1",
+    "min_lat": 34.6876,
+    "max_lat": 34.806,
+    "min_long": -110.4742,
+    "max_long": -110.4132
+  },
+  {
+    "zone_name": "Bridge_Closure_M1",
+    "min_lat": 34.9939,
+    "max_lat": 35.2501,
+    "min_long": -116.995,
+    "max_long": -116.7016
+  },
+  {
+    "zone_name": "Industrial_Block_N1",
+    "min_lat": 43.0151,
+    "max_lat": 43.1045,
+    "min_long": -108.8036,
+    "max_long": -108.649
+  },
+  {
+    "zone_name": "Wildlife_Corridor_O1",
+    "min_lat": 32.1672,
+    "max_lat": 32.239,
+    "min_long": -108.1151,
+    "max_long": -107.8855
+  },
+  {
+    "zone_name": "Bridge_Closure_P1",
+    "min_lat": 30.7985,
+    "max_lat": 30.9917,
+    "min_long": -85.4673,
+    "max_long": -85.3993
+  },
+  {
+    "zone_name": "Bridge_Closure_Q1",
+    "min_lat": 43.5216,
+    "max_lat": 43.7286,
+    "min_long": -96.0622,
+    "max_long": -95.955
+  },
+  {
+    "zone_name": "High_Risk_Pass_R1",
+    "min_lat": 42.7996,
+    "max_lat": 43.0256,
+    "min_long": -117.2468,
+    "max_long": -117.1436
+  },
+  {
+    "zone_name": "Port_Zone_S1",
+    "min_lat": 43.869,
+    "max_lat": 43.974,
+    "min_long": -94.3486,
+    "max_long": -94.1798
+  },
+  {
+    "zone_name": "Airport_Perimeter_T1",
+    "min_lat": 25.9154,
+    "max_lat": 26.1166,
+    "min_long": -78.7052,
+    "max_long": -78.4458
+  },
+  {
+    "zone_name": "Flood_Zone_U1",
+    "min_lat": 29.7445,
+    "max_lat": 29.8663,
+    "min_long": -110.4297,
+    "max_long": -110.3733
+  },
+  {
+    "zone_name": "Flood_Zone_V1",
+    "min_lat": 42.9077,
+    "max_lat": 43.0269,
+    "min_long": -87.3357,
+    "max_long": -87.0753
+  },
+  {
+    "zone_name": "Port_Zone_W1",
+    "min_lat": 40.2345,
+    "max_lat": 40.3557,
+    "min_long": -120.2015,
+    "max_long": -120.1249
+  },
+  {
+    "zone_name": "Wildlife_Corridor_X1",
+    "min_lat": 44.958,
+    "max_lat": 45.0642,
+    "min_long": -108.8748,
+    "max_long": -108.5952
+  },
+  {
+    "zone_name": "Wildlife_Corridor_Y1",
+    "min_lat": 30.2596,
+    "max_lat": 30.3156,
+    "min_long": -113.4804,
+    "max_long": -113.3562
+  },
+  {
+    "zone_name": "Military_Area_Z1",
+    "min_lat": 31.9263,
+    "max_lat": 32.0573,
+    "min_long": -80.5029,
+    "max_long": -80.4423
+  },
+  {
+    "zone_name": "Wildlife_Corridor_A2",
+    "min_lat": 35.2614,
+    "max_lat": 35.3578,
+    "min_long": -93.2682,
+    "max_long": -93.0668
+  },
+  {
+    "zone_name": "Flood_Zone_B2",
+    "min_lat": 37.1277,
+    "max_lat": 37.2391,
+    "min_long": -122.7958,
+    "max_long": -122.6762
+  },
+  {
+    "zone_name": "School_Safety_C2",
+    "min_lat": 35.0034,
+    "max_lat": 35.1936,
+    "min_long": -87.4671,
+    "max_long": -87.2835
+  },
+  {
+    "zone_name": "School_Safety_D2",
+    "min_lat": 34.9584,
+    "max_lat": 35.2036,
+    "min_long": -86.7964,
+    "max_long": -86.5868
+  },
+  {
+    "zone_name": "Airport_Perimeter_E2",
+    "min_lat": 44.5628,
+    "max_lat": 44.708,
+    "min_long": -119.742,
+    "max_long": -119.6368
+  },
+  {
+    "zone_name": "High_Risk_Pass_F2",
+    "min_lat": 28.7969,
+    "max_lat": 28.9671,
+    "min_long": -122.0087,
+    "max_long": -121.9251
+  },
+  {
+    "zone_name": "High_Risk_Pass_G2",
+    "min_lat": 28.7242,
+    "max_lat": 28.785,
+    "min_long": -89.6416,
+    "max_long": -89.457
+  },
+  {
+    "zone_name": "Wildlife_Corridor_H2",
+    "min_lat": 36.1463,
+    "max_lat": 36.2071,
+    "min_long": -99.5498,
+    "max_long": -99.4918
+  },
+  {
+    "zone_name": "Bridge_Closure_I2",
+    "min_lat": 38.4013,
+    "max_lat": 38.4845,
+    "min_long": -73.2222,
+    "max_long": -73.1006
+  },
+  {
+    "zone_name": "Flood_Zone_J2",
+    "min_lat": 29.8684,
+    "max_lat": 30.0524,
+    "min_long": -110.5956,
+    "max_long": -110.4008
+  },
+  {
+    "zone_name": "High_Risk_Pass_K2",
+    "min_lat": 26.9294,
+    "max_lat": 26.9804,
+    "min_long": -71.1296,
+    "max_long": -70.8786
+  },
+  {
+    "zone_name": "Bridge_Closure_L2",
+    "min_lat": 31.6111,
+    "max_lat": 31.8499,
+    "min_long": -89.1242,
+    "max_long": -88.862
+  },
+  {
+    "zone_name": "Bridge_Closure_M2",
+    "min_lat": 33.6352,
+    "max_lat": 33.7768,
+    "min_long": -107.9183,
+    "max_long": -107.7903
+  },
+  {
+    "zone_name": "High_Risk_Pass_N2",
+    "min_lat": 27.0807,
+    "max_lat": 27.1235,
+    "min_long": -119.7642,
+    "max_long": -119.5444
+  },
+  {
+    "zone_name": "Bridge_Closure_O2",
+    "min_lat": 45.1889,
+    "max_lat": 45.2887,
+    "min_long": -81.7687,
+    "max_long": -81.6675
+  },
+  {
+    "zone_name": "Flood_Zone_P2",
+    "min_lat": 28.5427,
+    "max_lat": 28.5955,
+    "min_long": -82.2542,
+    "max_long": -82.156
+  },
+  {
+    "zone_name": "Bridge_Closure_Q2",
+    "min_lat": 26.358,
+    "max_lat": 26.4348,
+    "min_long": -113.4932,
+    "max_long": -113.3058
+  },
+  {
+    "zone_name": "High_Risk_Pass_R2",
+    "min_lat": 30.3032,
+    "max_lat": 30.353,
+    "min_long": -102.3811,
+    "max_long": -102.2237
+  },
+  {
+    "zone_name": "Military_Area_S2",
+    "min_lat": 29.747,
+    "max_lat": 29.8888,
+    "min_long": -80.1703,
+    "max_long": -79.9939
+  },
+  {
+    "zone_name": "Wildlife_Corridor_T2",
+    "min_lat": 36.0177,
+    "max_lat": 36.2649,
+    "min_long": -82.2585,
+    "max_long": -81.9803
+  },
+  {
+    "zone_name": "Military_Area_U2",
+    "min_lat": 33.0591,
+    "max_lat": 33.2669,
+    "min_long": -121.458,
+    "max_long": -121.2556
+  },
+  {
+    "zone_name": "Flood_Zone_V2",
+    "min_lat": 37.7277,
+    "max_lat": 38.0027,
+    "min_long": -77.5222,
+    "max_long": -77.2534
+  },
+  {
+    "zone_name": "Bridge_Closure_W2",
+    "min_lat": 39.8738,
+    "max_lat": 40.1452,
+    "min_long": -116.9907,
+    "max_long": -116.8133
+  },
+  {
+    "zone_name": "Construction_Block_X2",
+    "min_lat": 43.4246,
+    "max_lat": 43.5122,
+    "min_long": -90.4421,
+    "max_long": -90.2441
+  },
+  {
+    "zone_name": "Flood_Zone_Y2",
+    "min_lat": 33.5732,
+    "max_lat": 33.8546,
+    "min_long": -110.2848,
+    "max_long": -110.0332
+  },
+  {
+    "zone_name": "Bridge_Closure_Z2",
+    "min_lat": 30.6031,
+    "max_lat": 30.7235,
+    "min_long": -112.7688,
+    "max_long": -112.6788
+  },
+  {
+    "zone_name": "Airport_Perimeter_A3",
+    "min_lat": 27.2567,
+    "max_lat": 27.3109,
+    "min_long": -115.3224,
+    "max_long": -115.273
+  },
+  {
+    "zone_name": "Military_Area_B3",
+    "min_lat": 43.7782,
+    "max_lat": 44.0572,
+    "min_long": -77.2662,
+    "max_long": -77.0328
+  },
+  {
+    "zone_name": "Military_Area_C3",
+    "min_lat": 36.8327,
+    "max_lat": 36.9289,
+    "min_long": -103.2847,
+    "max_long": -103.0399
+  },
+  {
+    "zone_name": "Flood_Zone_D3",
+    "min_lat": 43.2129,
+    "max_lat": 43.4697,
+    "min_long": -81.0815,
+    "max_long": -80.9431
+  },
+  {
+    "zone_name": "Military_Area_E3",
+    "min_lat": 41.2279,
+    "max_lat": 41.4011,
+    "min_long": -94.0124,
+    "max_long": -93.8248
+  },
+  {
+    "zone_name": "Airport_Perimeter_F3",
+    "min_lat": 43.6708,
+    "max_lat": 43.8068,
+    "min_long": -92.6795,
+    "max_long": -92.5659
+  },
+  {
+    "zone_name": "Wildlife_Corridor_G3",
+    "min_lat": 36.4393,
+    "max_lat": 36.6011,
+    "min_long": -107.1482,
+    "max_long": -106.8964
+  },
+  {
+    "zone_name": "Flood_Zone_H3",
+    "min_lat": 45.201,
+    "max_lat": 45.4102,
+    "min_long": -90.8684,
+    "max_long": -90.6582
+  },
+  {
+    "zone_name": "School_Safety_I3",
+    "min_lat": 38.3155,
+    "max_lat": 38.3837,
+    "min_long": -107.0593,
+    "max_long": -106.8827
+  },
+  {
+    "zone_name": "Wildlife_Corridor_J3",
+    "min_lat": 28.6856,
+    "max_lat": 28.8808,
+    "min_long": -80.2729,
+    "max_long": -80.1115
+  },
+  {
+    "zone_name": "Industrial_Block_K3",
+    "min_lat": 39.5259,
+    "max_lat": 39.5879,
+    "min_long": -97.6799,
+    "max_long": -97.6391
+  },
+  {
+    "zone_name": "Bridge_Closure_L3",
+    "min_lat": 46.0154,
+    "max_lat": 46.1774,
+    "min_long": -80.2793,
+    "max_long": -80.2259
+  },
+  {
+    "zone_name": "Wildlife_Corridor_M3",
+    "min_lat": 34.5542,
+    "max_lat": 34.7184,
+    "min_long": -76.6458,
+    "max_long": -76.559
+  },
+  {
+    "zone_name": "High_Risk_Pass_N3",
+    "min_lat": 33.3819,
+    "max_lat": 33.6769,
+    "min_long": -118.9507,
+    "max_long": -118.7757
+  },
+  {
+    "zone_name": "Bridge_Closure_O3",
+    "min_lat": 34.186,
+    "max_lat": 34.381,
+    "min_long": -117.8418,
+    "max_long": -117.7596
+  },
+  {
+    "zone_name": "Industrial_Block_P3",
+    "min_lat": 45.0345,
+    "max_lat": 45.3229,
+    "min_long": -116.0557,
+    "max_long": -115.9865
+  },
+  {
+    "zone_name": "Industrial_Block_Q3",
+    "min_lat": 42.2274,
+    "max_lat": 42.3754,
+    "min_long": -81.7023,
+    "max_long": -81.4529
+  },
+  {
+    "zone_name": "High_Risk_Pass_R3",
+    "min_lat": 46.5953,
+    "max_lat": 46.6361,
+    "min_long": -82.9968,
+    "max_long": -82.9238
+  },
+  {
+    "zone_name": "Wildlife_Corridor_S3",
+    "min_lat": 34.7414,
+    "max_lat": 34.836,
+    "min_long": -112.9146,
+    "max_long": -112.7092
+  },
+  {
+    "zone_name": "Port_Zone_T3",
+    "min_lat": 38.7023,
+    "max_lat": 38.8935,
+    "min_long": -106.8527,
+    "max_long": -106.7351
+  },
+  {
+    "zone_name": "High_Risk_Pass_U3",
+    "min_lat": 26.6867,
+    "max_lat": 26.8831,
+    "min_long": -75.4085,
+    "max_long": -75.1397
+  },
+  {
+    "zone_name": "Port_Zone_V3",
+    "min_lat": 27.2588,
+    "max_lat": 27.359,
+    "min_long": -98.6235,
+    "max_long": -98.4199
+  }
+]

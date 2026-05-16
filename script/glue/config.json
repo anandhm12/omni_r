@@ -1,0 +1,37 @@
+{
+  "job_name": "etl-prod-injection-re",
+  "create_glue_job": "False",
+  "create_config": {
+    "Command": {
+      "Name": "glueetl",
+      "ScriptLocation": "s3://ttn-de-bootcamp-bronze-us-east-1/anand_meshram_bronze/glue/scripts/injection_re.py",
+      
+      "PythonVersion": "3"
+    },
+    "DefaultArguments" : {
+          "--enable-glue-datacatalog":"",
+          "--enable-metrics" : "",
+          "--enable-continuous-cloudwatch-log" : "true",
+          "--enable-spark-ui" : "true",
+          "--spark-event-logs-path" : "s3://ttn-de-bootcamp-bronze-us-east-1/anand_meshram_bronze/glue/logs/",
+          "--additional-python-modules" : "pymysql"
+    },
+    "MaxCapacity": 5.0,
+    "GlueVersion":"4.0",
+    "NumberOfWorkers":10,
+    "WorkerType":"G.2X"
+  },
+  "jobrun_config": {
+    "Arguments": {
+      "--env": "prod",
+      "--param_file": "config_prod.param",
+     "--source_bucket":  "s3://ttn-de-bootcamp-bronze-us-east-1/",
+    "--source_prefix":  "anand_meshram_bronze/raw_data/",
+    "--source_format":  "csv",
+    "--target_bucket":  "your-landing-bucket",
+    "--target_prefix":  "data/injection/",
+    "--job_bookmark":   "enable",
+    "--log_level":      "INFO"
+    }
+  }
+}
