@@ -2,30 +2,17 @@
 glue_inject_raw_to_landing.py
 ------------------------------
 AWS Glue ETL Script — Stage 1: INJECT
+Reads raw data from a source S3 bucket, handles broken JSON CSV fragments,
+ensures the Glue Catalog database exists, and writes to the landing
+S3 bucket in Parquet format with Athena cataloging.
 
-ROOT CAUSE OF ERROR (line 148):
--------------------------------
-Your CSV has an unquoted JSON column, for example:
-
-  transaction_id,vin,...,[{"vin":"n901398e","lat":30.445263,"long":-79.134266,...}],driver_id,...
-
-The CSV parser splits every comma — including commas INSIDE the JSON —
-creating broken column names like:
-  `[`  `{"vin":_"n901398e"`  `"lat":_30`.`445263`  etc.
-
-Line 148 (the cast loop) then fails trying to reference those broken names.
-
-FIX STRATEGY:
-  After toDF(), BEFORE the cast loop:
-    1. Identify all broken JSON-fragment columns (contain { } : [ ] chars)
-    2. Concatenate them back into one JSON string
-    3. Parse the JSON → extract lat, long, speed, etc. as proper columns
-    4. Drop all broken fragment columns
-    5. Continue normally with the cast loop
+Partition column: load_timestamp  (format: YYYY-MM-DD-HH)
 """
 
 import sys
 import logging
+import boto3
+from botocore.exceptions import ClientError
 from datetime import datetime, timezone
 
 from awsglue.transforms import *
@@ -48,11 +35,12 @@ args = getResolvedOptions(sys.argv, [
     'JOB_NAME',
     'source_bucket',
     'source_prefix',
-    'source_format',
+    'source_format',       # json | csv | parquet
     'target_bucket',
     'target_prefix',
-    'job_bookmark',
+    'job_bookmark',        # enable | disable
     'log_level',
+    'AWS_REGION'           # Optional: fallback to us-east-1 if not provided
 ])
 
 sc          = SparkContext()
@@ -76,14 +64,17 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────
-# 2.  LOAD TIMESTAMP
+# 2.  LOAD TIMESTAMP & PATHS
 # ──────────────────────────────────────────────────────────────
 RUN_TS         = datetime.now(timezone.utc)
 LOAD_TIMESTAMP = RUN_TS.strftime('%Y-%m-%d-%H')
 PARTITION_COL  = 'load_timestamp'
+CATALOG_DB     = 'marketo_landing'
+CATALOG_TABLE  = 'leads_raw'
 
 def clean_bucket(val: str) -> str:
-    return val.replace('s3://', '').strip('/')
+    """Removes stray s3:// or trailing slashes to prevent 400 Errors"""
+    return val.replace('s3://', '').replace('s3:/', '').strip('/')
 
 SOURCE_PATH = f"s3://{clean_bucket(args['source_bucket'])}/{args['source_prefix'].strip('/')}/"
 TARGET_PATH = f"s3://{clean_bucket(args['target_bucket'])}/{args['target_prefix'].strip('/')}/"
@@ -93,6 +84,7 @@ log.info("=" * 64)
 log.info(f"  JOB NAME      : {args['JOB_NAME']}")
 log.info(f"  SOURCE PATH   : {SOURCE_PATH}  [{SOURCE_FMT}]")
 log.info(f"  TARGET PATH   : {TARGET_PATH}  [parquet]")
+log.info(f"  CATALOG       : {CATALOG_DB}.{CATALOG_TABLE}")
 log.info(f"  PARTITION COL : {PARTITION_COL}")
 log.info(f"  LOAD TIMESTAMP: {LOAD_TIMESTAMP}")
 log.info(f"  JOB BOOKMARK  : {args['job_bookmark']}")
@@ -113,10 +105,7 @@ FORMAT_OPTIONS_MAP = {
 }
 
 if SOURCE_FMT not in FORMAT_OPTIONS_MAP:
-    raise ValueError(
-        f"Unsupported source_format '{SOURCE_FMT}'. "
-        f"Must be one of: {list(FORMAT_OPTIONS_MAP.keys())}"
-    )
+    raise ValueError(f"Unsupported source_format '{SOURCE_FMT}'.")
 
 fmt_opts = FORMAT_OPTIONS_MAP[SOURCE_FMT]
 
@@ -126,7 +115,7 @@ source_dyf = glueContext.create_dynamic_frame.from_options(
         'paths':      [SOURCE_PATH],
         'recurse':    True,
         'groupFiles': 'inPartition',
-        'groupSize':  '134217728',
+        'groupSize':  '134217728', # 128 MB per Spark partition
     },
     format=fmt_opts['format'],
     format_options=fmt_opts['format_options'],
@@ -143,47 +132,23 @@ if record_count == 0:
 
 
 # ──────────────────────────────────────────────────────────────
-# 4.  RECONSTRUCT BROKEN JSON COLUMNS  ← THE FIX FOR LINE 148
-#
-#     When a CSV has unquoted JSON like:
-#       ..., [{"vin":"abc","lat":30.44,"long":-79.13,...}], ...
-#
-#     The CSV parser creates broken columns:
-#       `[`  `{"vin":"abc"`  `"lat":30`  `.44`  `"long":-79` `.13` ...
-#
-#     We detect these broken fragments, stitch them back into a
-#     single JSON string, parse it, then drop the fragments.
-#
-#     This runs BEFORE the cast loop (original line 148) so no
-#     AnalysisException can occur.
+# 4.  RECONSTRUCT BROKEN JSON COLUMNS
 # ──────────────────────────────────────────────────────────────
 df = source_dyf.toDF()
+log.info(f"[STEP 1b] Raw columns from reader: {len(df.columns)}")
 
-log.info(f"[STEP 1b] Raw columns from CSV reader : {df.columns}")
-
-# ── Helper: detect broken JSON fragment column names ─────────
 JSON_CHARS = set('{', '}', '[', ']', ':', '"')
 
 def is_json_fragment(col_name: str) -> bool:
-    """True if column name contains JSON punctuation — i.e. a broken fragment."""
     return any(ch in col_name for ch in JSON_CHARS)
 
 broken_cols = [c for c in df.columns if is_json_fragment(c)]
-clean_cols_list = [c for c in df.columns if not is_json_fragment(c)]
 
 if broken_cols:
-    log.info(f"[STEP 1b] Broken JSON fragment columns detected ({len(broken_cols)}): {broken_cols}")
-    log.info(f"[STEP 1b] Reconstructing JSON from fragments...")
+    log.info(f"[STEP 1b] Broken JSON fragment columns detected ({len(broken_cols)}). Reconstructing...")
 
-    # ── Stitch fragments back into one JSON string per row ───
-    # Each fragment column name IS the data (the CSV reader used
-    # the value as the column name because it was in the header row
-    # position after the split).
-    # We concat all fragment names with commas to rebuild the JSON.
-    json_rebuilt = ','.join(broken_cols)   # e.g. '[{"vin":"n901398e","lat":30.445263,...}]'
-    log.info(f"[STEP 1b] Reconstructed JSON string  : {json_rebuilt[:120]}...")
-
-    # ── Parse the reconstructed JSON string ──────────────────
+    json_rebuilt = ','.join(broken_cols)
+    
     EVENT_SCHEMA = ArrayType(StructType([
         StructField("vin",             StringType(),  True),
         StructField("driver_id",       StringType(),  True),
@@ -193,11 +158,9 @@ if broken_cols:
         StructField("event_timestamp", StringType(),  True),
     ]))
 
-    # Add reconstructed JSON as a literal column, parse it
     df = df.withColumn("_raw_json", F.lit(json_rebuilt))
     df = df.withColumn("_events",   F.from_json(F.col("_raw_json"), EVENT_SCHEMA))
 
-    # Extract fields from first array element
     df = (df
           .withColumn("event_vin",        F.col("_events")[0]["vin"])
           .withColumn("event_driver_id",  F.col("_events")[0]["driver_id"])
@@ -207,23 +170,15 @@ if broken_cols:
           .withColumn("event_timestamp",  F.col("_events")[0]["event_timestamp"])
          )
 
-    # Drop broken fragment columns and temp columns
     df = df.drop(*broken_cols).drop("_raw_json", "_events")
-
     log.info("[STEP 1b] JSON reconstruction complete.")
-    log.info(f"[STEP 1b] Clean columns now: {df.columns}")
-
-else:
-    log.info("[STEP 1b] No broken JSON fragment columns detected — skipping reconstruction")
 
 
 # ──────────────────────────────────────────────────────────────
 # 5.  ENRICHMENT
-#     Now safe to sanitise names and cast — no broken cols left
 # ──────────────────────────────────────────────────────────────
-log.info("[STEP 2] Enriching data — audit columns + load_timestamp partition")
+log.info("[STEP 2] Enriching data — sanitising names, casting to string")
 
-# Sanitise column names: lowercase, replace spaces/dashes with underscores
 rename_map = {
     c: c.strip().lower().replace(' ', '_').replace('-', '_')
     for c in df.columns
@@ -232,15 +187,11 @@ for old, new in rename_map.items():
     if old != new:
         df = df.withColumnRenamed(old, new)
 
-# Cast every column to string — schema-on-read at landing stage
-# THIS IS THE ORIGINAL LINE 148 — now safe because broken cols are gone
 for col_name in df.columns:
     df = df.withColumn(col_name, df[col_name].cast(StringType()))
 
-# Drop rows where every field is null
 df = df.dropna(how='all')
 
-# Audit + partition columns
 df = (df
       .withColumn(PARTITION_COL,           F.lit(LOAD_TIMESTAMP))
       .withColumn('_load_timestamp_full',  F.lit(RUN_TS.strftime('%Y-%m-%dT%H:%M:%SZ')))
@@ -250,12 +201,7 @@ df = (df
      )
 
 enriched_count = df.count()
-log.info(f"[STEP 2] Records after null-row drop  : {enriched_count:,}")
-log.info(f"[STEP 2] load_timestamp value applied : {LOAD_TIMESTAMP}")
-
-if log_level == logging.DEBUG:
-    df.printSchema()
-    df.show(5, truncate=False)
+log.info(f"[STEP 2] Records after enrichment: {enriched_count:,}")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -268,44 +214,64 @@ df = df.repartition(num_partitions)
 
 
 # ──────────────────────────────────────────────────────────────
-# 7.  WRITE TO LANDING BUCKET
+# 7.  ENSURE DATABASE EXISTS (BULLETPROOFING)
 # ──────────────────────────────────────────────────────────────
-log.info(f"[STEP 4] Writing to   : {TARGET_PATH}")
-log.info(f"         Partition key : {PARTITION_COL}={LOAD_TIMESTAMP}")
+glue_region = args.get('AWS_REGION', 'us-east-1')
+glue_client = boto3.client('glue', region_name=glue_region)
+
+try:
+    glue_client.get_database(Name=CATALOG_DB)
+    log.info(f"[STEP 4] Database '{CATALOG_DB}' exists.")
+except ClientError as e:
+    if e.response['Error']['Code'] == 'EntityNotFoundException':
+        log.info(f"[STEP 4] Database '{CATALOG_DB}' not found. Creating it now...")
+        glue_client.create_database(
+            DatabaseInput={
+                'Name': CATALOG_DB,
+                'Description': 'Automatically created by Glue Inject Job'
+            }
+        )
+    else:
+        log.error(f"[STEP 4] Failed to check/create database: {str(e)}")
+        raise e
+
+
+# ──────────────────────────────────────────────────────────────
+# 8.  WRITE TO LANDING BUCKET & UPDATE CATALOG (TABLE)
+# ──────────────────────────────────────────────────────────────
+log.info(f"[STEP 5] Writing to S3 and registering in Athena catalog...")
 
 landing_dyf = DynamicFrame.fromDF(df, glueContext, 'landing_dyf')
 
 sink = glueContext.getSink(
     connection_type='s3',
     path=TARGET_PATH,
-    enableUpdateCatalog=True,
-    updateBehavior='UPDATE_IN_DATABASE',
-    partitionKeys=[PARTITION_COL],
+    enableUpdateCatalog=True,              # Automates table creation in Athena
+    updateBehavior='UPDATE_IN_DATABASE',   # Automates schema updates in Athena
+    partitionKeys=[PARTITION_COL],         # Automates partitions in Athena
     transformation_ctx='sink',
 )
 sink.setFormat('glueparquet', format_options={'compression': 'snappy'})
 sink.setCatalogInfo(
-    catalogDatabase='marketo_landing',
-    catalogTableName='leads_raw',
+    catalogDatabase=CATALOG_DB,
+    catalogTableName=CATALOG_TABLE,
 )
 sink.writeFrame(landing_dyf)
 
-log.info("[STEP 4] Write complete.")
+log.info("[STEP 5] Write complete.")
 
 
 # ──────────────────────────────────────────────────────────────
-# 8.  SUMMARY
+# 9.  SUMMARY
 # ──────────────────────────────────────────────────────────────
 log.info("=" * 64)
 log.info("  INJECT SUMMARY")
 log.info(f"  Source records read    : {record_count:>10,}")
 log.info(f"  Records written        : {enriched_count:>10,}")
-log.info(f"  Dropped (null rows)    : {record_count - enriched_count:>10,}")
 log.info(f"  Partition column       : {PARTITION_COL}")
 log.info(f"  Partition value        : {LOAD_TIMESTAMP}")
-log.info(f"  Full run timestamp     : {RUN_TS.strftime('%Y-%m-%dT%H:%M:%SZ')}")
 log.info(f"  Target path            : {TARGET_PATH}{PARTITION_COL}={LOAD_TIMESTAMP}/")
-log.info(f"  Output format          : parquet / snappy")
+log.info(f"  Catalog Destination    : {CATALOG_DB}.{CATALOG_TABLE}")
 log.info("=" * 64)
 
 job.commit()
