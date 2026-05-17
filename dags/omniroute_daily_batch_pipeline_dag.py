@@ -44,10 +44,10 @@ with DAG(
     #                                            "/glue_wrapper.py " + airflow_scripts_path + "/config.json",retries=1, retry_delay=timedelta(seconds=60), dag=dag)
     
     injection = BashOperator(
-        task_id='landing_to_staging',
+        task_id='succes_to_landing',
         bash_command=(
             "python3 " + airflow_scripts_path +
-            "/glue_wrapper_landing_to_staging.py " +
+            "/glue_wrapper.py " +
             airflow_scripts_path + "/config.json"
         ),
         retries=1,
