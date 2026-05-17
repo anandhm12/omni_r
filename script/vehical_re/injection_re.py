@@ -7,15 +7,24 @@ to the landing (injection) S3 bucket in Parquet format.
 
 Partition column: load_timestamp  (format: YYYY-MM-DD-HH)
 
-Fix applied:
-  - col1 column contains embedded JSON string
-    e.g. {"vin":"n901398e","driver_id":"drv_261","speed":112,
-           "lat":30.445263,"long":-79.134266,"event_timestamp":"..."}
-  - CSV was being read with JSON keys treated as column names
-  - Fix: parse col1 as JSON → extract lat, long, speed, etc. as proper columns
+ROOT CAUSE OF ERROR:
+  The CSV file has an unquoted JSON column, e.g.:
+
+    transaction_id,vin,...,service_type,[{"vin":"n901398e","driver_id":"drv_261",
+    "speed":112,"lat":30.445263,"long":-79.134266,"event_timestamp":"..."}],driver_id,...
+
+  The CSV parser splits on every comma INSIDE the JSON, turning each
+  key-value pair into a broken column name like `"lat":_30`.`445263`.
+
+FIX:
+  Read the file as raw text lines → reconstruct each row by detecting
+  the JSON block (between first `[` and last `]`) → parse JSON separately
+  → join back with the regular CSV columns.
 """
 
 import sys
+import re
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -29,7 +38,7 @@ from pyspark.context import SparkContext
 from pyspark.sql import functions as F
 from pyspark.sql.types import (
     StringType, StructType, StructField,
-    DoubleType, IntegerType
+    DoubleType, IntegerType, ArrayType
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -39,10 +48,10 @@ args = getResolvedOptions(sys.argv, [
     'JOB_NAME',
     'source_bucket',
     'source_prefix',
-    'source_format',       # json | csv | parquet
+    'source_format',
     'target_bucket',
     'target_prefix',
-    'job_bookmark',        # enable | disable
+    'job_bookmark',
     'log_level',
 ])
 
@@ -67,13 +76,12 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────
-# 2.  LOAD TIMESTAMP  ← partition column
+# 2.  LOAD TIMESTAMP
 # ──────────────────────────────────────────────────────────────
 RUN_TS         = datetime.now(timezone.utc)
 LOAD_TIMESTAMP = RUN_TS.strftime('%Y-%m-%d-%H')
 PARTITION_COL  = 'load_timestamp'
 
-# ── Clean bucket helper (strips accidental s3:// prefix) ─────
 def clean_bucket(val: str) -> str:
     return val.replace('s3://', '').strip('/')
 
@@ -93,53 +101,127 @@ log.info("=" * 64)
 
 # ──────────────────────────────────────────────────────────────
 # 3.  READ SOURCE DATA
+#
+#     For CSV with embedded unquoted JSON we MUST read as raw
+#     text first — standard CSV parsers break on the commas
+#     inside the JSON object.
+#
+#     For JSON / Parquet we use the normal Glue path.
 # ──────────────────────────────────────────────────────────────
 log.info(f"[STEP 1] Reading source data from: {SOURCE_PATH}")
 
-FORMAT_OPTIONS_MAP = {
-    'json':    {
-        'format': 'json',
-        'format_options': {'multiLine': 'true'}
-    },
-    'csv':     {
-        'format': 'csv',
-        'format_options': {
-            'withHeader': 'true',
-            'separator':  ',',
-            'quoteChar':  '"',
-            'escaper':    '\\',      # handle escaped quotes inside JSON strings
-        }
-    },
-    'parquet': {
-        'format': 'parquet',
-        'format_options': {}
-    },
-}
 
-if SOURCE_FMT not in FORMAT_OPTIONS_MAP:
+def read_csv_with_embedded_json(spark, path: str):
+    """
+    Reads a CSV file that contains an unquoted JSON column.
+
+    Expected CSV structure (columns may vary in count):
+      transaction_id, vin, ..., service_type,
+      [{"vin":"...", "lat":30.4, "long":-79.1, ...}],
+      driver_id, ..., fuel_type
+
+    Strategy:
+      1. Read every line as plain text
+      2. Split header normally (no JSON in header)
+      3. For each data line — isolate the JSON block
+         between the FIRST '[' and the LAST ']',
+         replace it with a safe placeholder, split on
+         commas, then restore the JSON
+      4. Build a Row per line and create a DataFrame
+    """
+    from pyspark.sql import Row
+
+    raw_lines = spark.read.text(path).rdd.map(lambda r: r[0])
+
+    # ── Header ────────────────────────────────────────────────
+    header_line = raw_lines.first()
+    header      = [h.strip().strip('"') for h in header_line.split(',')]
+
+    # ── Data lines (skip header) ──────────────────────────────
+    data_lines = raw_lines.zipWithIndex() \
+                          .filter(lambda x: x[1] > 0) \
+                          .map(lambda x: x[0])
+
+    PLACEHOLDER = '##JSON_BLOCK##'
+
+    def parse_line(line: str):
+        """
+        Extract the JSON block (between first [ and last ]),
+        replace with placeholder, split on comma, restore JSON.
+        Returns a dict matching the header columns.
+        """
+        try:
+            # Find JSON array block boundaries
+            json_start = line.find('[')
+            json_end   = line.rfind(']')
+
+            if json_start != -1 and json_end != -1 and json_end > json_start:
+                json_block   = line[json_start: json_end + 1]
+                safe_line    = line[:json_start] + PLACEHOLDER + line[json_end + 1:]
+            else:
+                json_block = None
+                safe_line  = line
+
+            # Split the safe line on commas
+            parts = [p.strip().strip('"') for p in safe_line.split(',')]
+
+            # Restore JSON block into its placeholder position
+            restored = []
+            for p in parts:
+                if PLACEHOLDER in p:
+                    restored.append(json_block or p)
+                else:
+                    restored.append(p)
+
+            # Map to header — pad or trim if column count differs
+            if len(restored) < len(header):
+                restored += [None] * (len(header) - len(restored))
+            else:
+                restored = restored[:len(header)]
+
+            return Row(**dict(zip(header, restored)))
+
+        except Exception:
+            # Return a null row on parse failure — dropped later
+            return Row(**{h: None for h in header})
+
+    rows_rdd = data_lines.map(parse_line)
+    return spark.createDataFrame(rows_rdd)
+
+
+# ── Choose read strategy by format ───────────────────────────
+if SOURCE_FMT == 'csv':
+    log.info("[STEP 1] CSV detected — using raw-text reader to handle embedded JSON")
+    df = read_csv_with_embedded_json(spark, SOURCE_PATH).cache()
+
+elif SOURCE_FMT == 'json':
+    source_dyf = glueContext.create_dynamic_frame.from_options(
+        connection_type='s3',
+        connection_options={'paths': [SOURCE_PATH], 'recurse': True},
+        format='json',
+        format_options={'multiLine': 'true'},
+        transformation_ctx='source_dyf',
+    )
+    df = source_dyf.toDF().cache()
+
+elif SOURCE_FMT == 'parquet':
+    source_dyf = glueContext.create_dynamic_frame.from_options(
+        connection_type='s3',
+        connection_options={'paths': [SOURCE_PATH], 'recurse': True},
+        format='parquet',
+        format_options={},
+        transformation_ctx='source_dyf',
+    )
+    df = source_dyf.toDF().cache()
+
+else:
     raise ValueError(
         f"Unsupported source_format '{SOURCE_FMT}'. "
-        f"Must be one of: {list(FORMAT_OPTIONS_MAP.keys())}"
+        f"Must be one of: json | csv | parquet"
     )
 
-fmt_opts = FORMAT_OPTIONS_MAP[SOURCE_FMT]
-
-source_dyf = glueContext.create_dynamic_frame.from_options(
-    connection_type='s3',
-    connection_options={
-        'paths':      [SOURCE_PATH],
-        'recurse':    True,
-        'groupFiles': 'inPartition',
-        'groupSize':  '134217728',
-    },
-    format=fmt_opts['format'],
-    format_options=fmt_opts['format_options'],
-    transformation_ctx='source_dyf',
-)
-
-df = source_dyf.toDF().cache()
 record_count = df.count()
-log.info(f"[STEP 1] Records read from source : {record_count:,}")
+log.info(f"[STEP 1] Records read             : {record_count:,}")
 log.info(f"[STEP 1] Columns detected         : {df.columns}")
 
 if record_count == 0:
@@ -149,69 +231,65 @@ if record_count == 0:
 
 
 # ──────────────────────────────────────────────────────────────
-# 4.  FIX — PARSE JSON EMBEDDED IN col1
+# 4.  PARSE JSON COLUMN  (col1 or any column holding JSON array)
 #
-#     Problem:
-#       CSV has a column called col1 that contains a raw JSON string:
-#       {"vin":"n901398e","driver_id":"drv_261","speed":112,
-#        "lat":30.445263,"long":-79.134266,"event_timestamp":"..."}
+#     After raw-text read, the JSON block is preserved as a
+#     single string in its column.  Now we explode it into
+#     individual typed fields.
 #
-#       Spark treated the JSON keys as column names, causing:
-#       AnalysisException: UNRESOLVED_COLUMN `"lat":_30`.`445263`
-#
-#     Fix:
-#       1. Detect col1 (column containing JSON)
-#       2. Parse it using from_json() with explicit schema
-#       3. Expand parsed fields as proper DataFrame columns
-#       4. Drop the raw JSON column
+#     JSON schema inside the array element:
+#       { "vin":             string,
+#         "driver_id":       string,
+#         "speed":           integer,
+#         "lat":             double,
+#         "long":            double,
+#         "event_timestamp": string  }
 # ──────────────────────────────────────────────────────────────
-JSON_COL = 'col1'   # column that holds the raw JSON string
-
-# Schema matching the JSON structure inside col1
-EVENT_JSON_SCHEMA = StructType([
+EVENT_JSON_SCHEMA = ArrayType(StructType([
     StructField("vin",             StringType(),  True),
     StructField("driver_id",       StringType(),  True),
     StructField("speed",           IntegerType(), True),
     StructField("lat",             DoubleType(),  True),
     StructField("long",            DoubleType(),  True),
     StructField("event_timestamp", StringType(),  True),
-])
+]))
 
-if JSON_COL in df.columns:
-    log.info(f"[STEP 2a] Detected JSON column '{JSON_COL}' — parsing embedded JSON")
+# Detect the column that starts with '[' (JSON array column)
+json_col = None
+for c in df.columns:
+    sample = df.select(c).dropna().limit(1).collect()
+    if sample and str(sample[0][0]).strip().startswith('['):
+        json_col = c
+        break
 
-    # Parse the JSON string into a struct
-    df = df.withColumn("_event_parsed", F.from_json(F.col(JSON_COL), EVENT_JSON_SCHEMA))
+if json_col:
+    log.info(f"[STEP 2a] JSON array column detected: '{json_col}' — parsing now")
 
-    # Expand struct fields into individual columns
+    df = df.withColumn("_events", F.from_json(F.col(json_col), EVENT_JSON_SCHEMA))
+
+    # Take first element of the array (adjust with explode if multiple events per row)
     df = (df
-          .withColumn("event_vin",        F.col("_event_parsed.vin"))
-          .withColumn("event_driver_id",  F.col("_event_parsed.driver_id"))
-          .withColumn("event_speed",      F.col("_event_parsed.speed").cast(StringType()))
-          .withColumn("event_lat",        F.col("_event_parsed.lat").cast(StringType()))
-          .withColumn("event_long",       F.col("_event_parsed.long").cast(StringType()))
-          .withColumn("event_timestamp",  F.col("_event_parsed.event_timestamp"))
+          .withColumn("event_vin",        F.col("_events")[0]["vin"])
+          .withColumn("event_driver_id",  F.col("_events")[0]["driver_id"])
+          .withColumn("event_speed",      F.col("_events")[0]["speed"].cast(StringType()))
+          .withColumn("event_lat",        F.col("_events")[0]["lat"].cast(StringType()))
+          .withColumn("event_long",       F.col("_events")[0]["long"].cast(StringType()))
+          .withColumn("event_timestamp",  F.col("_events")[0]["event_timestamp"])
          )
 
-    # Drop raw JSON column and temp struct
-    df = df.drop("_event_parsed", JSON_COL)
-
-    log.info("[STEP 2a] JSON fields extracted: "
-             "event_vin, event_driver_id, event_speed, event_lat, event_long, event_timestamp")
+    df = df.drop("_events", json_col)
+    log.info("[STEP 2a] Extracted: event_vin, event_driver_id, event_speed, "
+             "event_lat, event_long, event_timestamp")
 else:
-    log.info(f"[STEP 2a] Column '{JSON_COL}' not found — skipping JSON parse step")
+    log.info("[STEP 2a] No JSON array column detected — skipping JSON parse")
 
 
 # ──────────────────────────────────────────────────────────────
 # 5.  ENRICHMENT
-#     • Sanitise column names
-#     • Cast all columns to string
-#     • Drop fully-null rows
-#     • Stamp audit + partition columns
 # ──────────────────────────────────────────────────────────────
-log.info("[STEP 2] Enriching data — sanitize + audit + partition column")
+log.info("[STEP 2] Enriching — sanitize columns + audit + partition stamp")
 
-# Sanitise column names: lowercase, replace spaces/dashes with underscores
+# Sanitise column names
 clean_cols = {
     c: c.strip().lower().replace(' ', '_').replace('-', '_')
     for c in df.columns
@@ -220,11 +298,11 @@ for old, new in clean_cols.items():
     if old != new:
         df = df.withColumnRenamed(old, new)
 
-# Cast every column to string — schema-on-read at landing stage
+# Cast everything to string at landing stage
 for col_name in df.columns:
     df = df.withColumn(col_name, df[col_name].cast(StringType()))
 
-# Drop rows where every field is null
+# Drop fully-null rows
 df = df.dropna(how='all')
 
 # Audit + partition columns
@@ -238,7 +316,7 @@ df = (df
 
 enriched_count = df.count()
 log.info(f"[STEP 2] Records after null-row drop  : {enriched_count:,}")
-log.info(f"[STEP 2] load_timestamp value applied : {LOAD_TIMESTAMP}")
+log.info(f"[STEP 2] load_timestamp applied       : {LOAD_TIMESTAMP}")
 log.info(f"[STEP 2] Final columns                : {df.columns}")
 
 if log_level == logging.DEBUG:
@@ -251,16 +329,12 @@ if log_level == logging.DEBUG:
 # ──────────────────────────────────────────────────────────────
 ROWS_PER_PARTITION = 65_536
 num_partitions     = max(1, enriched_count // ROWS_PER_PARTITION)
-log.info(f"[STEP 3] Repartitioning to {num_partitions} output file(s)")
+log.info(f"[STEP 3] Repartitioning to {num_partitions} file(s)")
 df = df.repartition(num_partitions)
 
 
 # ──────────────────────────────────────────────────────────────
 # 7.  WRITE TO LANDING BUCKET
-#
-#     s3://<target_bucket>/<target_prefix>/
-#         load_timestamp=2026-05-16-14/
-#             part-00000.snappy.parquet
 # ──────────────────────────────────────────────────────────────
 log.info(f"[STEP 4] Writing to   : {TARGET_PATH}")
 log.info(f"         Partition key : {PARTITION_COL}={LOAD_TIMESTAMP}")
