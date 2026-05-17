@@ -29,7 +29,7 @@
     "--source_prefix":  "anand_meshram_bronze/raw_data/",
     "--source_format":  "csv",
     "--target_bucket":  "ttn-de-bootcamp-bronze-us-east-1",
-    "--target_prefix":  "data/injection/",
+    "--target_prefix":  "anand_meshram_bronze/data/injection/",
     "--job_bookmark":   "enable",
     "--log_level":      "INFO",
     "--AWS_REGION": "us-east-1"
