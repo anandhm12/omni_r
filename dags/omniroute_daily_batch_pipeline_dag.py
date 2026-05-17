@@ -5,6 +5,7 @@ from airflow.operators.bash import BashOperator
 from airflow.operators.empty import EmptyOperator
 from airflow.models import Variable
 from airflow.utils.trigger_rule import TriggerRule 
+from airflow import DAG
 # ---------------------------------------------------------
 # Default Arguments & Configuration
 # ---------------------------------------------------------

@@ -1,20 +1,15 @@
 from airflow import DAG
-from airflow.providers.standard.operators.empty import EmptyOperator
+from airflow.operators.empty import EmptyOperator   # ✅ correct import
 from datetime import datetime
 
-# Define the DAG
 with DAG(
-    dag_id='empty_task_example',
+    dag_id='empty_dag',
     start_date=datetime(2024, 1, 1),
-    schedule='* * * * *',  # This runs the DAG every single minute
+    schedule_interval='@daily',
     catchup=False,
-    tags=['example']
 ) as dag:
 
-    # 1. Defining the empty tasks
-    start_node = EmptyOperator(task_id='begin_workflow')
-    
-    end_node = EmptyOperator(task_id='end_workflow')
+    start = EmptyOperator(task_id='start')
+    end   = EmptyOperator(task_id='end')
 
-    # 2. Setting the dependencies
-    start_node >> end_node
+    start >> end
