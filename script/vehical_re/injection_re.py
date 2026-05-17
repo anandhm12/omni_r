@@ -2,29 +2,29 @@
 glue_inject_raw_to_landing.py
 ------------------------------
 AWS Glue ETL Script — Stage 1: INJECT
-Reads raw data from a source S3 bucket and writes it
-to the landing (injection) S3 bucket in Parquet format.
 
-Partition column: load_timestamp  (format: YYYY-MM-DD-HH)
+ROOT CAUSE OF ERROR (line 148):
+-------------------------------
+Your CSV has an unquoted JSON column, for example:
 
-ROOT CAUSE OF ERROR:
-  The CSV file has an unquoted JSON column, e.g.:
+  transaction_id,vin,...,[{"vin":"n901398e","lat":30.445263,"long":-79.134266,...}],driver_id,...
 
-    transaction_id,vin,...,service_type,[{"vin":"n901398e","driver_id":"drv_261",
-    "speed":112,"lat":30.445263,"long":-79.134266,"event_timestamp":"..."}],driver_id,...
+The CSV parser splits every comma — including commas INSIDE the JSON —
+creating broken column names like:
+  `[`  `{"vin":_"n901398e"`  `"lat":_30`.`445263`  etc.
 
-  The CSV parser splits on every comma INSIDE the JSON, turning each
-  key-value pair into a broken column name like `"lat":_30`.`445263`.
+Line 148 (the cast loop) then fails trying to reference those broken names.
 
-FIX:
-  Read the file as raw text lines → reconstruct each row by detecting
-  the JSON block (between first `[` and last `]`) → parse JSON separately
-  → join back with the regular CSV columns.
+FIX STRATEGY:
+  After toDF(), BEFORE the cast loop:
+    1. Identify all broken JSON-fragment columns (contain { } : [ ] chars)
+    2. Concatenate them back into one JSON string
+    3. Parse the JSON → extract lat, long, speed, etc. as proper columns
+    4. Drop all broken fragment columns
+    5. Continue normally with the cast loop
 """
 
 import sys
-import re
-import json
 import logging
 from datetime import datetime, timezone
 
@@ -101,128 +101,40 @@ log.info("=" * 64)
 
 # ──────────────────────────────────────────────────────────────
 # 3.  READ SOURCE DATA
-#
-#     For CSV with embedded unquoted JSON we MUST read as raw
-#     text first — standard CSV parsers break on the commas
-#     inside the JSON object.
-#
-#     For JSON / Parquet we use the normal Glue path.
 # ──────────────────────────────────────────────────────────────
 log.info(f"[STEP 1] Reading source data from: {SOURCE_PATH}")
 
+FORMAT_OPTIONS_MAP = {
+    'json':    {'format': 'json',    'format_options': {'multiLine': 'true'}},
+    'csv':     {'format': 'csv',     'format_options': {'withHeader': 'true',
+                                                        'separator':  ',',
+                                                        'quoteChar':  '"'}},
+    'parquet': {'format': 'parquet', 'format_options': {}},
+}
 
-def read_csv_with_embedded_json(spark, path: str):
-    """
-    Reads a CSV file that contains an unquoted JSON column.
-
-    Expected CSV structure (columns may vary in count):
-      transaction_id, vin, ..., service_type,
-      [{"vin":"...", "lat":30.4, "long":-79.1, ...}],
-      driver_id, ..., fuel_type
-
-    Strategy:
-      1. Read every line as plain text
-      2. Split header normally (no JSON in header)
-      3. For each data line — isolate the JSON block
-         between the FIRST '[' and the LAST ']',
-         replace it with a safe placeholder, split on
-         commas, then restore the JSON
-      4. Build a Row per line and create a DataFrame
-    """
-    from pyspark.sql import Row
-
-    raw_lines = spark.read.text(path).rdd.map(lambda r: r[0])
-
-    # ── Header ────────────────────────────────────────────────
-    header_line = raw_lines.first()
-    header      = [h.strip().strip('"') for h in header_line.split(',')]
-
-    # ── Data lines (skip header) ──────────────────────────────
-    data_lines = raw_lines.zipWithIndex() \
-                          .filter(lambda x: x[1] > 0) \
-                          .map(lambda x: x[0])
-
-    PLACEHOLDER = '##JSON_BLOCK##'
-
-    def parse_line(line: str):
-        """
-        Extract the JSON block (between first [ and last ]),
-        replace with placeholder, split on comma, restore JSON.
-        Returns a dict matching the header columns.
-        """
-        try:
-            # Find JSON array block boundaries
-            json_start = line.find('[')
-            json_end   = line.rfind(']')
-
-            if json_start != -1 and json_end != -1 and json_end > json_start:
-                json_block   = line[json_start: json_end + 1]
-                safe_line    = line[:json_start] + PLACEHOLDER + line[json_end + 1:]
-            else:
-                json_block = None
-                safe_line  = line
-
-            # Split the safe line on commas
-            parts = [p.strip().strip('"') for p in safe_line.split(',')]
-
-            # Restore JSON block into its placeholder position
-            restored = []
-            for p in parts:
-                if PLACEHOLDER in p:
-                    restored.append(json_block or p)
-                else:
-                    restored.append(p)
-
-            # Map to header — pad or trim if column count differs
-            if len(restored) < len(header):
-                restored += [None] * (len(header) - len(restored))
-            else:
-                restored = restored[:len(header)]
-
-            return Row(**dict(zip(header, restored)))
-
-        except Exception:
-            # Return a null row on parse failure — dropped later
-            return Row(**{h: None for h in header})
-
-    rows_rdd = data_lines.map(parse_line)
-    return spark.createDataFrame(rows_rdd)
-
-
-# ── Choose read strategy by format ───────────────────────────
-if SOURCE_FMT == 'csv':
-    log.info("[STEP 1] CSV detected — using raw-text reader to handle embedded JSON")
-    df = read_csv_with_embedded_json(spark, SOURCE_PATH).cache()
-
-elif SOURCE_FMT == 'json':
-    source_dyf = glueContext.create_dynamic_frame.from_options(
-        connection_type='s3',
-        connection_options={'paths': [SOURCE_PATH], 'recurse': True},
-        format='json',
-        format_options={'multiLine': 'true'},
-        transformation_ctx='source_dyf',
-    )
-    df = source_dyf.toDF().cache()
-
-elif SOURCE_FMT == 'parquet':
-    source_dyf = glueContext.create_dynamic_frame.from_options(
-        connection_type='s3',
-        connection_options={'paths': [SOURCE_PATH], 'recurse': True},
-        format='parquet',
-        format_options={},
-        transformation_ctx='source_dyf',
-    )
-    df = source_dyf.toDF().cache()
-
-else:
+if SOURCE_FMT not in FORMAT_OPTIONS_MAP:
     raise ValueError(
         f"Unsupported source_format '{SOURCE_FMT}'. "
-        f"Must be one of: json | csv | parquet"
+        f"Must be one of: {list(FORMAT_OPTIONS_MAP.keys())}"
     )
 
-record_count = df.count()
-log.info(f"[STEP 1] Records read             : {record_count:,}")
-log.info(f"[STEP 1] Columns detected         : {df.columns}")
+fmt_opts = FORMAT_OPTIONS_MAP[SOURCE_FMT]
+
+source_dyf = glueContext.create_dynamic_frame.from_options(
+    connection_type='s3',
+    connection_options={
+        'paths':      [SOURCE_PATH],
+        'recurse':    True,
+        'groupFiles': 'inPartition',
+        'groupSize':  '134217728',
+    },
+    format=fmt_opts['format'],
+    format_options=fmt_opts['format_options'],
+    transformation_ctx='source_dyf',
+)
+
+record_count = source_dyf.count()
+log.info(f"[STEP 1] Records read from source: {record_count:,}")
 
 if record_count == 0:
     log.warning("[STEP 1] No new records found — nothing to inject. Exiting.")
@@ -231,43 +143,61 @@ if record_count == 0:
 
 
 # ──────────────────────────────────────────────────────────────
-# 4.  PARSE JSON COLUMN  (col1 or any column holding JSON array)
+# 4.  RECONSTRUCT BROKEN JSON COLUMNS  ← THE FIX FOR LINE 148
 #
-#     After raw-text read, the JSON block is preserved as a
-#     single string in its column.  Now we explode it into
-#     individual typed fields.
+#     When a CSV has unquoted JSON like:
+#       ..., [{"vin":"abc","lat":30.44,"long":-79.13,...}], ...
 #
-#     JSON schema inside the array element:
-#       { "vin":             string,
-#         "driver_id":       string,
-#         "speed":           integer,
-#         "lat":             double,
-#         "long":            double,
-#         "event_timestamp": string  }
+#     The CSV parser creates broken columns:
+#       `[`  `{"vin":"abc"`  `"lat":30`  `.44`  `"long":-79` `.13` ...
+#
+#     We detect these broken fragments, stitch them back into a
+#     single JSON string, parse it, then drop the fragments.
+#
+#     This runs BEFORE the cast loop (original line 148) so no
+#     AnalysisException can occur.
 # ──────────────────────────────────────────────────────────────
-EVENT_JSON_SCHEMA = ArrayType(StructType([
-    StructField("vin",             StringType(),  True),
-    StructField("driver_id",       StringType(),  True),
-    StructField("speed",           IntegerType(), True),
-    StructField("lat",             DoubleType(),  True),
-    StructField("long",            DoubleType(),  True),
-    StructField("event_timestamp", StringType(),  True),
-]))
+df = source_dyf.toDF()
 
-# Detect the column that starts with '[' (JSON array column)
-json_col = None
-for c in df.columns:
-    sample = df.select(c).dropna().limit(1).collect()
-    if sample and str(sample[0][0]).strip().startswith('['):
-        json_col = c
-        break
+log.info(f"[STEP 1b] Raw columns from CSV reader : {df.columns}")
 
-if json_col:
-    log.info(f"[STEP 2a] JSON array column detected: '{json_col}' — parsing now")
+# ── Helper: detect broken JSON fragment column names ─────────
+JSON_CHARS = set('{', '}', '[', ']', ':', '"')
 
-    df = df.withColumn("_events", F.from_json(F.col(json_col), EVENT_JSON_SCHEMA))
+def is_json_fragment(col_name: str) -> bool:
+    """True if column name contains JSON punctuation — i.e. a broken fragment."""
+    return any(ch in col_name for ch in JSON_CHARS)
 
-    # Take first element of the array (adjust with explode if multiple events per row)
+broken_cols = [c for c in df.columns if is_json_fragment(c)]
+clean_cols_list = [c for c in df.columns if not is_json_fragment(c)]
+
+if broken_cols:
+    log.info(f"[STEP 1b] Broken JSON fragment columns detected ({len(broken_cols)}): {broken_cols}")
+    log.info(f"[STEP 1b] Reconstructing JSON from fragments...")
+
+    # ── Stitch fragments back into one JSON string per row ───
+    # Each fragment column name IS the data (the CSV reader used
+    # the value as the column name because it was in the header row
+    # position after the split).
+    # We concat all fragment names with commas to rebuild the JSON.
+    json_rebuilt = ','.join(broken_cols)   # e.g. '[{"vin":"n901398e","lat":30.445263,...}]'
+    log.info(f"[STEP 1b] Reconstructed JSON string  : {json_rebuilt[:120]}...")
+
+    # ── Parse the reconstructed JSON string ──────────────────
+    EVENT_SCHEMA = ArrayType(StructType([
+        StructField("vin",             StringType(),  True),
+        StructField("driver_id",       StringType(),  True),
+        StructField("speed",           IntegerType(), True),
+        StructField("lat",             DoubleType(),  True),
+        StructField("long",            DoubleType(),  True),
+        StructField("event_timestamp", StringType(),  True),
+    ]))
+
+    # Add reconstructed JSON as a literal column, parse it
+    df = df.withColumn("_raw_json", F.lit(json_rebuilt))
+    df = df.withColumn("_events",   F.from_json(F.col("_raw_json"), EVENT_SCHEMA))
+
+    # Extract fields from first array element
     df = (df
           .withColumn("event_vin",        F.col("_events")[0]["vin"])
           .withColumn("event_driver_id",  F.col("_events")[0]["driver_id"])
@@ -277,32 +207,37 @@ if json_col:
           .withColumn("event_timestamp",  F.col("_events")[0]["event_timestamp"])
          )
 
-    df = df.drop("_events", json_col)
-    log.info("[STEP 2a] Extracted: event_vin, event_driver_id, event_speed, "
-             "event_lat, event_long, event_timestamp")
+    # Drop broken fragment columns and temp columns
+    df = df.drop(*broken_cols).drop("_raw_json", "_events")
+
+    log.info("[STEP 1b] JSON reconstruction complete.")
+    log.info(f"[STEP 1b] Clean columns now: {df.columns}")
+
 else:
-    log.info("[STEP 2a] No JSON array column detected — skipping JSON parse")
+    log.info("[STEP 1b] No broken JSON fragment columns detected — skipping reconstruction")
 
 
 # ──────────────────────────────────────────────────────────────
 # 5.  ENRICHMENT
+#     Now safe to sanitise names and cast — no broken cols left
 # ──────────────────────────────────────────────────────────────
-log.info("[STEP 2] Enriching — sanitize columns + audit + partition stamp")
+log.info("[STEP 2] Enriching data — audit columns + load_timestamp partition")
 
-# Sanitise column names
-clean_cols = {
+# Sanitise column names: lowercase, replace spaces/dashes with underscores
+rename_map = {
     c: c.strip().lower().replace(' ', '_').replace('-', '_')
     for c in df.columns
 }
-for old, new in clean_cols.items():
+for old, new in rename_map.items():
     if old != new:
         df = df.withColumnRenamed(old, new)
 
-# Cast everything to string at landing stage
+# Cast every column to string — schema-on-read at landing stage
+# THIS IS THE ORIGINAL LINE 148 — now safe because broken cols are gone
 for col_name in df.columns:
     df = df.withColumn(col_name, df[col_name].cast(StringType()))
 
-# Drop fully-null rows
+# Drop rows where every field is null
 df = df.dropna(how='all')
 
 # Audit + partition columns
@@ -316,8 +251,7 @@ df = (df
 
 enriched_count = df.count()
 log.info(f"[STEP 2] Records after null-row drop  : {enriched_count:,}")
-log.info(f"[STEP 2] load_timestamp applied       : {LOAD_TIMESTAMP}")
-log.info(f"[STEP 2] Final columns                : {df.columns}")
+log.info(f"[STEP 2] load_timestamp value applied : {LOAD_TIMESTAMP}")
 
 if log_level == logging.DEBUG:
     df.printSchema()
@@ -329,7 +263,7 @@ if log_level == logging.DEBUG:
 # ──────────────────────────────────────────────────────────────
 ROWS_PER_PARTITION = 65_536
 num_partitions     = max(1, enriched_count // ROWS_PER_PARTITION)
-log.info(f"[STEP 3] Repartitioning to {num_partitions} file(s)")
+log.info(f"[STEP 3] Repartitioning to {num_partitions} output file(s)")
 df = df.repartition(num_partitions)
 
 
