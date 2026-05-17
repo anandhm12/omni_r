@@ -4,8 +4,8 @@ db_name = cdl_prod
 batch_size = 4
 region_name = us-east-1
 s3_temp_location = = s3://aws-athena-query-results-537124955775-us-east-1/
-athena_workgroup = cdl-test-AthenaWorkGroup
-secret_name = cdl-test-DatalakeSecretAD
+athena_workgroup = 
+secret_name = 
 landing_bucket_name = s3://ttn-de-bootcamp-bronze-us-east-1/7002_anand/
 
 [MYSQL]

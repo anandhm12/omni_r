@@ -20,14 +20,14 @@ except ImportError:
 # ==========================================
 
 # Fetch Environment Variables
-env = get_param('GEN', 'env')
-region_name = get_param('GEN', 'region')
-# Handle cases where endpoint_url might not be needed or is None
-endpoint_url = get_param('GEN', 'endpoint_url') 
-role_arn = get_param('GEN', 'crawler_iam_role_arn')
+# env = get_param('GEN', 'env')
+# region_name = get_param('GEN', 'region')
+# # Handle cases where endpoint_url might not be needed or is None
+# endpoint_url = get_param('GEN', 'endpoint_url') 
+# role_arn = get_param('GEN', 'crawler_iam_role_arn')
 env = "prod"
-region = "us-east-1"
-crawler_iam_role_arn = "arn:aws:iam::537124955775:role/bootcamp-poc-farhan"
+region_name = "us-east-1"
+role_arn = "arn:aws:iam::537124955775:role/bootcamp-poc-farhan"
 endpoint_url = "https://glue.us-east-1.amazonaws.com"
 
 if len(sys.argv) < 2:

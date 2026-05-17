@@ -28,7 +28,7 @@
      "--source_bucket":  "s3://ttn-de-bootcamp-bronze-us-east-1/",
     "--source_prefix":  "anand_meshram_bronze/raw_data/",
     "--source_format":  "csv",
-    "--target_bucket":  "your-landing-bucket",
+    "--target_bucket":  "s3://ttn-de-bootcamp-bronze-us-east-1/",
     "--target_prefix":  "data/injection/",
     "--job_bookmark":   "enable",
     "--log_level":      "INFO"
