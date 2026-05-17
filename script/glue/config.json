@@ -25,10 +25,10 @@
     "Arguments": {
       "--env": "prod",
       "--param_file": "config_prod.param",
-     "--source_bucket":  "s3://ttn-de-bootcamp-bronze-us-east-1/",
+     "--source_bucket":  "ttn-de-bootcamp-bronze-us-east-1",
     "--source_prefix":  "anand_meshram_bronze/raw_data/",
     "--source_format":  "csv",
-    "--target_bucket":  "s3://ttn-de-bootcamp-bronze-us-east-1/",
+    "--target_bucket":  "ttn-de-bootcamp-bronze-us-east-1",
     "--target_prefix":  "data/injection/",
     "--job_bookmark":   "enable",
     "--log_level":      "INFO"
