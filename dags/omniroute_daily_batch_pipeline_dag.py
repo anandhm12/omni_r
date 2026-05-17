@@ -18,7 +18,7 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
 }
 
-airflow_scripts_path = "/home/ubuntu/airflow/omni_r/scripts/glue"
+airflow_scripts_path = "/home/ubuntu/airflow/omni_r/script/glue"
 # ---------------------------------------------------------
 # DAG Definition
 # ---------------------------------------------------------
